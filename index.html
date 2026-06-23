@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DashBoard Mamma</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%232563eb'/><path d='M9 16.5l4.5 4.5L23 11' fill='none' stroke='white' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+
+<style>
+  :root { --bg:#f2f4f7; --card:#fff; --pri:#2563eb; --ok:#16a34a; --warn:#dc2626; --bd:#d8dee9; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+         background:var(--bg); color:#1f2937; padding:12px; }
+  h1 { font-size:1.25rem; margin:0; }
+  h2 { font-size:1rem; margin:0 0 10px; }
+  header { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+  .dot { width:14px; height:14px; border-radius:50%; background:#9ca3af; flex:0 0 auto; }
+  .dot.on { background:var(--ok); } .dot.off { background:var(--warn); }
+  .card { background:var(--card); border:1px solid var(--bd); border-radius:12px;
+          padding:14px; margin-bottom:14px; }
+  label { font-size:.8rem; color:#6b7280; display:block; margin:6px 0 2px; }
+  input, select, textarea { width:100%; padding:10px; border:1px solid var(--bd);
+          border-radius:8px; font-size:1rem; background:#fff; }
+  textarea { resize:vertical; min-height:60px; }
+  button { border:0; border-radius:8px; padding:11px 14px; font-size:1rem; font-weight:600;
+           color:#fff; background:var(--pri); cursor:pointer; }
+  button.sec { background:#6b7280; } button.ok { background:var(--ok); }
+  button.warn { background:var(--warn); } button.sm { padding:7px 10px; font-size:.85rem; }
+  .row { display:flex; gap:8px; align-items:flex-end; margin-bottom:8px; }
+  .row .grow { flex:1; }
+  .actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  details summary { cursor:pointer; color:#6b7280; font-size:.85rem; }
+  .muted { color:#6b7280; font-size:.8rem; }
+  #log { font-family:ui-monospace,monospace; font-size:.78rem; background:#0f172a; color:#cbd5e1;
+         padding:10px; border-radius:8px; max-height:160px; overflow:auto; white-space:pre-wrap; }
+  .pill { font-size:.7rem; padding:2px 8px; border-radius:999px; background:#e5e7eb; color:#374151; }
+  .badge { font-size:.7rem; background:var(--ok); color:#fff; padding:2px 9px; border-radius:999px;
+           margin-left:6px; vertical-align:middle; }
+  .card.attivo { border-color:var(--ok); border-width:3px; background:#eafaf0;
+                 box-shadow:0 0 0 3px rgba(22,163,74,.22); }
+  .card.attivo-warn { border-color:var(--warn); border-width:3px; background:#fdecec;
+                      box-shadow:0 0 0 3px rgba(220,38,38,.25); }
+  .card.attivo-warn .badge { background:var(--warn); }
+</style>
+</head>
+<body>
+
+<header>
+  <span id="dot" class="dot"></span>
+  <h1>DashBoard Mamma</h1>
+  <span id="stato" class="muted" style="margin-left:auto">connessione…</span>
+</header>
+
+<!-- ── Impostazioni connessione ───────────────────────────── -->
+<details class="card">
+  <summary>Impostazioni broker e token</summary>
+  <label>Broker (host)</label>
+  <input id="host" placeholder="xxxx.s1.eu.hivemq.cloud">
+  <div class="row">
+    <div class="grow"><label>Porta WebSocket (wss)</label><input id="port" value="8884"></div>
+    <div class="grow"><label>Token segreto</label><input id="token" placeholder="token segreto"></div>
+  </div>
+  <div class="row">
+    <div class="grow"><label>Username</label><input id="user" placeholder="utente"></div>
+    <div class="grow"><label>Password</label><input id="pass" type="password" placeholder="password"></div>
+  </div>
+  <label>Prefisso topic</label>
+  <input id="prefix" value="casa/anziano">
+
+  <label>Oppure incolla le impostazioni (una per riga: chiave=valore)</label>
+  <textarea id="cfgText" placeholder="host=xxxx.s1.eu.hivemq.cloud&#10;port=8884&#10;user=...&#10;pass=...&#10;token=...&#10;prefix=casa/anziano"></textarea>
+  <div class="actions">
+    <button class="sm sec" onclick="applicaImpostazioniDaTesto()">Applica da testo</button>
+    <button class="sm sec" onclick="esportaImpostazioni()">Copia attuali qui ↑</button>
+  </div>
+
+  <div class="actions"><button class="sec" onclick="riconnetti()">Salva e riconnetti</button></div>
+  <p class="muted">Le impostazioni si salvano nel browser (restano dopo il refresh).
+  La pagina si riallinea da sola leggendo i messaggi salvati sul broker.</p>
+</details>
+
+<!-- ── Configura WiFi della scheda (Web Bluetooth) ─────────── -->
+<details class="card" id="card-wifi">
+  <summary>📶 Configura WiFi della scheda (Bluetooth)</summary>
+  <label>Rete WiFi (SSID)</label>
+  <input id="btSsid" placeholder="nome della rete WiFi">
+  <label>Password WiFi</label>
+  <input id="btPass" type="password">
+  <div class="actions"><button onclick="configuraWifiBT()">Connetti e invia</button></div>
+  <p class="muted">Stato: <span id="btStato">—</span></p>
+  <p class="muted">Serve Chrome col Bluetooth. La scheda dev'essere in "CONFIGURA IL WiFi".</p>
+</details>
+
+<!-- ── TODO ───────────────────────────────────────────────── -->
+<div class="card" id="card-todo">
+  <h2>📋 Lista cose da fare <span class="badge" hidden>● in mostra</span></h2>
+  <div id="todoRows"></div>
+  <div class="actions">
+    <button id="btnAddTodo" class="sm sec" onclick="aggiungiRigaTodo()">+ Riga</button>
+    <button onclick="inviaTodo()">Invia lista</button>
+  </div>
+  <p class="muted" id="todoCap"></p>
+</div>
+
+<!-- ── MESSAGGIO ──────────────────────────────────────────── -->
+<div class="card" id="card-messaggio">
+  <h2>💬 Messaggio a tutto schermo <span class="badge" hidden>● in mostra</span></h2>
+  <label>Testo (vai a capo con Invio per più righe)</label>
+  <textarea id="msgTesto" placeholder="Es. Torno alle 18&#10;Chiama se serve"></textarea>
+  <label>Corpo del testo</label>
+  <select id="msgStile" style="max-width:170px">
+    <option value="#">Grande</option><option value="##">Medio</option><option value="">Normale</option>
+  </select>
+  <p class="muted" id="msgHint"></p>
+  <div class="actions"><button onclick="inviaMessaggio()">Invia messaggio</button></div>
+</div>
+
+<!-- ── ALLARME ────────────────────────────────────────────── -->
+<div class="card" id="card-allarme">
+  <h2>🔔 Allarme immediato <span class="badge" hidden>● in mostra</span></h2>
+  <label>Testo dell'allarme (sempre grande · vai a capo per più righe)</label>
+  <textarea id="allTesto" placeholder="Es. PRENDI&#10;LE MEDICINE"></textarea>
+  <p class="muted" id="allHint"></p>
+  <div class="actions">
+    <button class="warn" onclick="inviaAllarme()">Suona allarme</button>
+    <button class="ok" onclick="inviaReset()">Spegni allarme</button>
+  </div>
+</div>
+
+<!-- ── SVEGLIE ────────────────────────────────────────────── -->
+<div class="card">
+  <h2>⏰ Sveglie programmate</h2>
+  <div id="svegliaRows"></div>
+  <div class="actions">
+    <button class="sm sec" onclick="aggiungiRigaSveglia()">+ Sveglia</button>
+    <button onclick="inviaSveglie()">Salva sveglie</button>
+    <button class="ok" onclick="inviaReset()">Ferma sveglia in corso</button>
+  </div>
+  <p class="muted">Ora in formato 24h. Durata = minuti che l'avviso resta a schermo.
+  "Ferma sveglia in corso" interrompe l'avviso e torna alla lista.</p>
+</div>
+
+<!-- ── LOG / FEEDBACK ─────────────────────────────────────── -->
+<div class="card">
+  <h2>📡 Attività <span class="pill" id="ultimoAck">in attesa…</span></h2>
+  <div id="log"></div>
+</div>
+
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<script>
+// ── Stato globale ────────────────────────────────────────────
+let client = null;
+const STILI = [["#","Grande"],["##","Medio"],["","Normale"]];
+
+// Capienza del display (stime prudenti: il font è proporzionale).
+//   max   = caratteri massimi per riga
+//   hTodo = altezza riga nella lista todo (px)   hMsg = idem nel messaggio
+const STILE_INFO = {
+  "#":  { nome:"Grande",  max:24, hTodo:78, hMsg:74 },
+  "##": { nome:"Medio",   max:36, hTodo:64, hMsg:60 },
+  "":   { nome:"Normale", max:52, hTodo:50, hMsg:46 },
+};
+const TODO_AVAIL = 395;   // px verticali disponibili per la lista todo
+const MSG_AVAIL  = 375;   // px verticali disponibili per il messaggio
+
+const $ = id => document.getElementById(id);
+function cfg() {
+  const p = $("prefix").value.trim();
+  return {
+    host: $("host").value.trim(), port: $("port").value.trim(),
+    user: $("user").value, pass: $("pass").value,
+    token: $("token").value,
+    tDisplay: p + "/display", tSveglie: p + "/sveglie", tFeedback: p + "/feedback",
+    tStato: p + "/stato",
+  };
+}
+
+// Impostazioni broker/token salvate nel browser (localStorage): le modifiche
+// NON si perdono al refresh. La prima volta usa i valori scritti nell'HTML.
+const SETTINGS_IDS = ["host", "port", "user", "pass", "token", "prefix"];
+function caricaImpostazioni() {
+  SETTINGS_IDS.forEach(id => {
+    const v = localStorage.getItem("cfg_" + id);
+    if (v !== null) $(id).value = v;
+  });
+}
+function salvaImpostazioni() {
+  SETTINGS_IDS.forEach(id => localStorage.setItem("cfg_" + id, $(id).value));
+}
+// Incolla le impostazioni come righe "chiave=valore" (o "chiave: valore").
+function applicaImpostazioniDaTesto() {
+  let n = 0;
+  $("cfgText").value.split("\n").forEach(r => {
+    r = r.trim();
+    if (!r || r.startsWith("#")) return;
+    const m = r.match(/^([a-zA-Z]+)\s*[:=]\s*(.*)$/);
+    if (!m) return;
+    const k = m[1].toLowerCase(), v = m[2].trim();
+    if (SETTINGS_IDS.includes(k)) { $(k).value = v; n++; }
+  });
+  salvaImpostazioni();
+  alert(n + " campi applicati e salvati. Riconnetto…");
+  riconnetti();
+}
+// Riempie la textarea con i valori attuali (per copiarli/salvarli).
+function esportaImpostazioni() {
+  $("cfgText").value = SETTINGS_IDS.map(id => id + "=" + $(id).value).join("\n");
+}
+function log(msg) {
+  const t = new Date().toLocaleTimeString();
+  $("log").textContent = `[${t}] ${msg}\n` + $("log").textContent;
+}
+
+// ── Connessione MQTT su WebSocket ────────────────────────────
+function connetti() {
+  const c = cfg();
+  const url = `wss://${c.host}:${c.port}/mqtt`;
+  $("stato").textContent = "connessione…";
+  client = mqtt.connect(url, {
+    clientId: "composer-" + Math.random().toString(16).slice(2),
+    username: c.user, password: c.pass,
+    clean: true, reconnectPeriod: 3000,
+  });
+  client.on("connect", () => {
+    $("dot").className = "dot on"; $("stato").textContent = "connesso";
+    client.subscribe([c.tDisplay, c.tSveglie, c.tFeedback, c.tStato], { qos: 1 });
+    log("Connesso a " + url);
+  });
+  client.on("reconnect", () => { $("dot").className = "dot"; $("stato").textContent = "riconnessione…"; });
+  client.on("close",    () => { $("dot").className = "dot off"; $("stato").textContent = "disconnesso"; });
+  client.on("error",    e  => { log("Errore: " + e.message); });
+  client.on("message", (topic, payload) => onMessaggio(topic, payload.toString()));
+}
+function riconnetti() { salvaImpostazioni(); if (client) client.end(true); connetti(); }
+
+// Evidenzia quale schermata è attiva sul pannello
+function nomeTipo(t) { return ({ todo:"Lista", messaggio:"Messaggio", allarme:"Allarme" })[t] || t; }
+function setAttivo(tipo) {
+  const map = { todo:"card-todo", messaggio:"card-messaggio", allarme:"card-allarme" };
+  ["card-todo","card-messaggio","card-allarme"].forEach(id => {
+    const c = $(id), on = map[tipo] === id;
+    c.classList.toggle("attivo", on);
+    c.classList.toggle("attivo-warn", on && tipo === "allarme");
+    c.querySelector(".badge").hidden = !on;
+  });
+}
+
+// ── Ricezione: riallinea i form dai retained ─────────────────
+function onMessaggio(topic, msg) {
+  const c = cfg();
+  if (topic === c.tFeedback) {
+    // Il feedback è ciò che l'ESP32 ha DAVVERO disegnato: prima riga = tipo attuale
+    const tipoFb = msg.split("\n")[0].trim();
+    setAttivo(tipoFb);
+    $("ultimoAck").textContent = "in mostra: " + nomeTipo(tipoFb);
+    log("Feedback ← " + msg.replace(/\n/g, " | "));
+    return;
+  }
+  if (topic === c.tStato) {
+    setWifiCard(msg.trim() === "online");   // online → nascondi config WiFi
+    log("Stato scheda: " + msg.trim());
+    return;
+  }
+  // togli la prima riga se è il token
+  let righe = msg.split("\n");
+  if (righe[0] === c.token) righe.shift();
+  const tipo = (righe.shift() || "").trim();
+
+  if (topic === c.tDisplay) {
+    if (tipo === "todo")          caricaTodo(righe);
+    else if (tipo === "messaggio") caricaMessaggio(righe);
+    if (["todo","messaggio","allarme"].includes(tipo)) setAttivo(tipo);
+    log(`Display ← tipo '${tipo}'`);
+  } else if (topic === c.tSveglie && tipo === "sveglie") {
+    caricaSveglie(righe);
+    log("Sveglie ← " + righe.length + " voci");
+  }
+}
+
+// ── TODO: editor a righe ─────────────────────────────────────
+function selStile(valore) {
+  const opts = STILI.map(([v,n]) => `<option value="${v}" ${v===valore?"selected":""}>${n}</option>`).join("");
+  return `<select>${opts}</select>`;
+}
+function usatoTodo() {
+  let s = 0;
+  $("todoRows").querySelectorAll(".row").forEach(r => s += STILE_INFO[r.dataset.stile || ""].hTodo);
+  return s;
+}
+function aggiornaCapienzaTodo() {
+  const btn = $("btnAddTodo"), restante = TODO_AVAIL - usatoTodo();
+  btn.disabled = restante < STILE_INFO[""].hTodo;
+  btn.textContent = btn.disabled ? "Lista piena" : "+ Riga";
+  $("todoCap").textContent = btn.disabled
+    ? "Spazio esaurito: togli una riga o usa un corpo più piccolo." : "";
+}
+function aggiungiRigaTodo(testo = "", stile = "") {
+  if (usatoTodo() + STILE_INFO[stile].hTodo > TODO_AVAIL) { aggiornaCapienzaTodo(); return; }
+  const info = STILE_INFO[stile];
+  const div = document.createElement("div");
+  div.className = "row"; div.dataset.stile = stile;
+  div.innerHTML = `<div class="grow"><input class="t" maxlength="${info.max}" value="${escAttr(testo)}" placeholder="voce…"></div>
+    <div>${selStile(stile)}<div class="muted">max ${info.max}</div></div>
+    <button class="sm sec">✕</button>`;
+  $("todoRows").appendChild(div);
+  div.querySelector("select").addEventListener("change", () => cambiaStileTodo(div));
+  div.querySelector("button").addEventListener("click", () => { div.remove(); aggiornaCapienzaTodo(); });
+  aggiornaCapienzaTodo();
+}
+function cambiaStileTodo(div) {
+  const sel = div.querySelector("select"), nuovo = sel.value, vecchio = div.dataset.stile || "";
+  const totale = usatoTodo() - STILE_INFO[vecchio].hTodo + STILE_INFO[nuovo].hTodo;
+  if (totale > TODO_AVAIL) {
+    alert("Con questo corpo la lista non ci sta: togli prima una riga.");
+    sel.value = vecchio; return;
+  }
+  div.dataset.stile = nuovo;
+  const info = STILE_INFO[nuovo], inp = div.querySelector(".t");
+  inp.maxLength = info.max; inp.value = inp.value.slice(0, info.max);
+  div.querySelector(".muted").textContent = "max " + info.max;
+  aggiornaCapienzaTodo();
+}
+function caricaTodo(righe) {
+  $("todoRows").innerHTML = "";
+  righe.forEach(r => {
+    const { stile, testo } = staccaMarcatore(r);
+    if (testo.trim() !== "" || stile !== "") aggiungiRigaTodo(testo, stile);
+  });
+  if (!$("todoRows").children.length) aggiungiRigaTodo();
+  aggiornaCapienzaTodo();
+}
+function inviaTodo() {
+  const righe = [...$("todoRows").querySelectorAll(".row")].map(row => {
+    const testo = row.querySelector(".t").value.trim();
+    const stile = row.querySelector("select").value;
+    if (testo === "") return null;
+    return (stile ? stile + " " : "") + testo;
+  }).filter(Boolean);
+  pubblica(cfg().tDisplay, ["todo", ...righe].join("\n"), true);
+}
+
+// ── MESSAGGIO ────────────────────────────────────────────────
+function infoMsg() { return STILE_INFO[$("msgStile").value]; }
+function maxRigheMsg() { return Math.floor(MSG_AVAIL / infoMsg().hMsg); }
+function aggiornaHintMsg() {
+  const i = infoMsg();
+  $("msgHint").textContent = `max ${i.max} caratteri per riga · max ${maxRigheMsg()} righe`;
+  forzaLimitiMsg();
+}
+function forzaLimitiMsg() {
+  const i = infoMsg(), maxR = maxRigheMsg();
+  let linee = $("msgTesto").value.split("\n").map(l => l.slice(0, i.max));
+  if (linee.length > maxR) linee = linee.slice(0, maxR);
+  $("msgTesto").value = linee.join("\n");
+}
+function caricaMessaggio(righe) {
+  const parsed = righe.filter(r => r.trim() !== "").map(staccaMarcatore);
+  $("msgStile").value = parsed.length ? parsed[0].stile : "#";   // stile della 1ª riga
+  $("msgTesto").value = parsed.map(p => p.testo).join("\n");
+  aggiornaHintMsg();
+}
+function inviaMessaggio() {
+  const linee = $("msgTesto").value.split("\n").map(s => s.trim()).filter(Boolean);
+  if (!linee.length) return alert("Scrivi il testo del messaggio.");
+  const stile = $("msgStile").value;
+  const corpo = linee.map(l => (stile ? stile + " " : "") + l).join("\n");
+  pubblica(cfg().tDisplay, "messaggio\n" + corpo, true);
+}
+
+// ── ALLARME / RESET (retain OFF) ─────────────────────────────
+function forzaLimitiAllarme() {
+  const i = STILE_INFO["#"], maxR = Math.floor(MSG_AVAIL / i.hMsg);
+  let linee = $("allTesto").value.split("\n").map(l => l.slice(0, i.max));
+  if (linee.length > maxR) linee = linee.slice(0, maxR);
+  $("allTesto").value = linee.join("\n");
+}
+function inviaAllarme() {
+  const linee = $("allTesto").value.split("\n").map(s => s.trim()).filter(Boolean);
+  if (!linee.length) return alert("Scrivi il testo dell'allarme.");
+  const corpo = linee.map(l => "# " + l).join("\n");   // sempre Grande
+  pubblica(cfg().tDisplay, "allarme\n" + corpo, false);
+}
+function inviaReset() { pubblica(cfg().tDisplay, "reset", false); }
+
+// ── SVEGLIE ──────────────────────────────────────────────────
+function aggiungiRigaSveglia(ora = "08:00", durata = 5, testo = "") {
+  const div = document.createElement("div");
+  div.className = "row";
+  div.innerHTML = `<div><label>Ora</label><input class="o" type="time" value="${ora}"></div>
+    <div style="width:80px"><label>Min</label><input class="d" type="number" min="1" value="${durata}"></div>
+    <div class="grow"><label>Messaggio</label><input class="m" value="${escAttr(testo)}" placeholder="avviso…"></div>
+    <button class="sm sec" onclick="this.parentElement.remove()">✕</button>`;
+  $("svegliaRows").appendChild(div);
+}
+function caricaSveglie(righe) {
+  $("svegliaRows").innerHTML = "";
+  righe.forEach(r => {
+    if (!r.trim()) return;
+    const i1 = r.indexOf("|"), i2 = r.indexOf("|", i1 + 1);
+    if (i1 < 0) return;
+    const ora = r.slice(0, i1);
+    const durata = i2 < 0 ? 5 : parseInt(r.slice(i1 + 1, i2)) || 5;
+    const testo = i2 < 0 ? r.slice(i1 + 1) : r.slice(i2 + 1);
+    aggiungiRigaSveglia(ora, durata, testo);
+  });
+  if (!$("svegliaRows").children.length) aggiungiRigaSveglia();
+}
+function inviaSveglie() {
+  const righe = [...$("svegliaRows").querySelectorAll(".row")].map(row => {
+    const ora = row.querySelector(".o").value;
+    const durata = row.querySelector(".d").value || 5;
+    const testo = row.querySelector(".m").value.trim();
+    if (!ora || !testo) return null;
+    return `${ora}|${durata}|${testo}`;
+  }).filter(Boolean);
+  pubblica(cfg().tSveglie, ["sveglie", ...righe].join("\n"), true);
+}
+
+// ── Pubblicazione (aggiunge il token come prima riga) ────────
+function pubblica(topic, corpo, retain) {
+  if (!client || !client.connected) return alert("Non connesso al broker.");
+  const payload = cfg().token + "\n" + corpo;
+  client.publish(topic, payload, { qos: 1, retain });
+  log(`Inviato → ${topic} (retain ${retain ? "ON" : "OFF"})`);
+}
+
+// ── Utility ──────────────────────────────────────────────────
+function staccaMarcatore(riga) {
+  if (riga.startsWith("## ")) return { stile: "##", testo: riga.slice(3) };
+  if (riga.startsWith("# "))  return { stile: "#",  testo: riga.slice(2) };
+  return { stile: "", testo: riga };
+}
+function escAttr(s) { return (s || "").replace(/"/g, "&quot;"); }
+
+// ── Configura WiFi della scheda via Web Bluetooth ────────────
+const BT_SVC    = "5f3e0001-7b2a-4c1d-9e6f-0a1b2c3d4e5f";
+const BT_CONFIG = "5f3e0002-7b2a-4c1d-9e6f-0a1b2c3d4e5f";  // scrivi "ssid;password"
+const BT_STATO  = "5f3e0005-7b2a-4c1d-9e6f-0a1b2c3d4e5f";  // notifica esito
+function btStato(s) { $("btStato").textContent = s; }
+// Mostra il riquadro "Configura WiFi" solo quando la scheda è OFFLINE
+function setWifiCard(online) {
+  const c = $("card-wifi");
+  if (c) c.style.display = online ? "none" : "";
+}
+async function configuraWifiBT() {
+  if (!navigator.bluetooth) { alert("Questo browser non supporta Web Bluetooth: usa Chrome."); return; }
+  const ssid = $("btSsid").value.trim(), pass = $("btPass").value;
+  if (!ssid) { alert("Inserisci il nome della rete WiFi."); return; }
+  try {
+    btStato("seleziona DashboardMamma…");
+    const dev = await navigator.bluetooth.requestDevice({ filters: [{ services: [BT_SVC] }] });
+    btStato("connessione…");
+    const gatt = await dev.gatt.connect();
+    const svc = await gatt.getPrimaryService(BT_SVC);
+    try {  // notifiche di stato dalla scheda (opzionali)
+      const st = await svc.getCharacteristic(BT_STATO);
+      await st.startNotifications();
+      st.addEventListener("characteristicvaluechanged",
+        e => btStato("scheda: " + new TextDecoder().decode(e.target.value)));
+    } catch (_) {}
+    const cfg = await svc.getCharacteristic(BT_CONFIG);
+    await cfg.writeValue(new TextEncoder().encode(ssid + ";" + pass));
+    btStato("inviato, attendo esito dalla scheda…");
+  } catch (e) {
+    btStato("errore: " + e.message);
+  }
+}
+
+// ── Avvio ────────────────────────────────────────────────────
+$("msgStile").addEventListener("change", aggiornaHintMsg);
+$("msgTesto").addEventListener("input", forzaLimitiMsg);
+aggiornaHintMsg();
+$("allTesto").addEventListener("input", forzaLimitiAllarme);
+$("allHint").textContent = `sempre grande · max ${STILE_INFO["#"].max} caratteri per riga · max ${Math.floor(MSG_AVAIL / STILE_INFO["#"].hMsg)} righe`;
+aggiungiRigaTodo("COSE DA FARE", "#");
+aggiungiRigaTodo();
+aggiungiRigaSveglia();
+caricaImpostazioni();   // applica le impostazioni salvate nel browser
+connetti();
+</script>
+</body>
+</html>
