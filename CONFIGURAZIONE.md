@@ -55,9 +55,9 @@ BeSMS usa la piattaforma **apisms** (endpoint `https://secure.apisms.it/http/sen
    vanno in `smsLogin` e `smsPass`.
 3. **id_api** (la "rotta"): nell'area riservata, in home, **clicca sul nome del listino**
    in basso: lì trovi il numero → va in `smsIdApi`.
-4. **Mittente** (`smsSender`): un nome di **massimo 11 caratteri** (es. `Mamma`) oppure
-   un **numero** con `+` e prefisso (es. `+39333...`). Se usi un nome, di solito va
-   **registrato** nell'area BeSMS (*Extra → Gestione Mittenti*).
+4. **Mittente** (`smsSender`): usa un **numero verificato** col `+` e prefisso
+   (es. `+393351234567`). Un **nome** (es. `Mamma`) è accettato **solo se** prima
+   **registrato/verificato** in BeSMS (*Extra → Gestione Mittenti*), altrimenti l'invio dà KO.
 5. **Numeri destinatari** (`smsNumeri`): formato internazionale **senza +**, separati da
    virgola. Esempio: `393351234567,393401234567`.
 

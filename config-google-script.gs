@@ -39,7 +39,7 @@ function doGet(e) {
     mailUrl:   'https://script.google.com/macros/s/XXXX/exec?key=CHIAVE_EMAIL', // lo script dell'EMAIL SOS
     smsLogin:  'utente-besms',
     smsPass:   'password-besms',
-    smsSender: 'Mamma',                  // mittente: max 11 caratteri, oppure un numero con +
+    smsSender: '+393351234567',          // mittente: un NUMERO VERIFICATO col + (un nome non verificato dà KO)
     smsIdApi:  '5',                      // id_api (rotta) del listino BeSMS
     smsNumeri: '393351234567,393401234567' // numeri separati da virgola, formato 39... senza +
   };
