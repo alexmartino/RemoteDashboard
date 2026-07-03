@@ -51,32 +51,68 @@
   <span id="stato" class="muted" style="margin-left:auto">connessione…</span>
 </header>
 
-<!-- ── Impostazioni connessione ───────────────────────────── -->
-<details class="card">
-  <summary>Impostazioni broker e token</summary>
-  <label>Broker (host)</label>
-  <input id="host" placeholder="xxxx.s1.eu.hivemq.cloud">
-  <div class="row">
-    <div class="grow"><label>Porta WebSocket (wss)</label><input id="port" value="8884"></div>
-    <div class="grow"><label>Token segreto</label><input id="token" placeholder="token segreto"></div>
-  </div>
-  <div class="row">
-    <div class="grow"><label>Username</label><input id="user" placeholder="utente"></div>
-    <div class="grow"><label>Password</label><input id="pass" type="password" placeholder="password"></div>
-  </div>
-  <label>Prefisso topic</label>
-  <input id="prefix" value="casa/anziano">
+<div id="sosBanner" style="display:none; background:var(--warn); color:#fff; padding:14px;
+     border-radius:10px; font-weight:700; text-align:center; margin-bottom:12px;">
+  🆘 SOS — richiesta di aiuto!
+  <button class="sm" style="background:#fff;color:var(--warn);margin-left:10px"
+     onclick="sosVisto()">OK, visto — spegni</button>
+</div>
 
-  <label>Oppure incolla le impostazioni (una per riga: chiave=valore)</label>
-  <textarea id="cfgText" placeholder="host=xxxx.s1.eu.hivemq.cloud&#10;port=8884&#10;user=...&#10;pass=...&#10;token=...&#10;prefix=casa/anziano"></textarea>
+<!-- ── Configurazione (URL condiviso dall'amministratore) ── -->
+<!-- Pannello CHIUSO al reload: si apre da soli solo se non ci sono dati memorizzati -->
+<details class="card" id="card-configurl">
+  <summary>🔑 Configurazione</summary>
+  <p id="cfgAvviso" class="muted"
+     style="display:none; color:var(--warn); font-weight:700">
+    ⚠️ Nessuna configurazione memorizzata da un'apertura precedente.
+    Incolla qui l'URL che ti hanno dato e premi "Carica configurazione".
+  </p>
+  <label>Incolla qui l'URL di configurazione che ti hanno dato</label>
+  <input id="configUrl" placeholder="https://script.google.com/.../exec?key=...">
   <div class="actions">
-    <button class="sm sec" onclick="applicaImpostazioniDaTesto()">Applica da testo</button>
-    <button class="sm sec" onclick="esportaImpostazioni()">Copia attuali qui ↑</button>
+    <button onclick="caricaDaUrl(true)">Carica configurazione</button>
   </div>
+  <p class="muted">L'URL lo fornisce l'amministratore e contiene i dati del broker (non devi
+  digitare nulla a mano). Con l'URL <b>da amministratore</b> si sbloccano anche le Notifiche SOS.</p>
+</details>
 
-  <div class="actions"><button class="sec" onclick="riconnetti()">Salva e riconnetti</button></div>
-  <p class="muted">Le impostazioni si salvano nel browser (restano dopo il refresh).
-  La pagina si riallinea da sola leggendo i messaggi salvati sul broker.</p>
+<!-- ── Dati broker: nascosti, arrivano dall'URL di configurazione ── -->
+<div id="broker-hidden" style="display:none">
+  <input id="host">
+  <input id="port" value="8884">
+  <input id="user">
+  <input id="pass">
+  <input id="prefix" value="casa/anziano">
+  <textarea id="cfgText"></textarea>
+</div>
+
+<!-- ── Notifiche SOS (email + SMS) — visibile solo con URL admin ── -->
+<details class="card" id="card-notifiche" style="display:none">
+  <summary>🆘 Notifiche SOS (email + SMS)</summary>
+  <p class="muted">Le utenze restano nel tuo browser e vengono inviate alla scheda,
+  che le ricorda. Così il firmware è condivisibile senza modifiche: ognuno mette le proprie.</p>
+
+  <label>Email — URL Apps Script (Google)</label>
+  <input id="nMailUrl" placeholder="https://script.google.com/.../exec?key=...">
+
+  <label>SMS — Login BeSMS</label>
+  <input id="nSmsLogin" placeholder="utente BeSMS">
+  <div class="row">
+    <div class="grow"><label>SMS — Password BeSMS</label><input id="nSmsPass" type="password" placeholder="password BeSMS"></div>
+    <div class="grow"><label>SMS — id_api (rotta)</label><input id="nSmsIdApi" placeholder="es. 5"></div>
+  </div>
+  <label>SMS — Mittente (max 11 caratteri, o un numero con +)</label>
+  <input id="nSmsSender" placeholder="es. Mamma">
+  <label>SMS — Numeri destinatari (separati da virgola, formato 39333…)</label>
+  <textarea id="nSmsNumeri" placeholder="393351234567, 393401234567"></textarea>
+
+  <div class="actions">
+    <button class="sec" onclick="salvaNotifiche()">Salva nel browser</button>
+    <button onclick="inviaNotifiche()">Salva e invia alla scheda</button>
+  </div>
+  <p class="muted">L'endpoint SMS è <b>secure.apisms.it</b> (la piattaforma di BeSMS).
+  Gli SMS hanno un costo (bundle BeSMS); l'email è gratuita.
+  Per provare tutta la catena usa <b>"Invia SOS (test)"</b> nel riquadro Allarme.</p>
 </details>
 
 <!-- ── Configura WiFi della scheda (Web Bluetooth) ─────────── -->
@@ -124,7 +160,10 @@
   <div class="actions">
     <button class="warn" onclick="inviaAllarme()">Suona allarme</button>
     <button class="ok" onclick="inviaReset()">Spegni allarme</button>
+    <button class="sec" onclick="inviaSosTest()">Invia SOS (test)</button>
   </div>
+  <p class="muted">🆘 L'SOS avvisa via <b>email</b> (tramite Google / Apps Script) e via
+  <b>SMS</b> (tramite BeSMS).</p>
 </div>
 
 <!-- ── SVEGLIE ────────────────────────────────────────────── -->
@@ -169,15 +208,14 @@ function cfg() {
   return {
     host: $("host").value.trim(), port: $("port").value.trim(),
     user: $("user").value, pass: $("pass").value,
-    token: $("token").value,
     tDisplay: p + "/display", tSveglie: p + "/sveglie", tFeedback: p + "/feedback",
-    tStato: p + "/stato",
+    tStato: p + "/stato", tSos: p + "/sos", tConfig: p + "/config",
   };
 }
 
-// Impostazioni broker/token salvate nel browser (localStorage): le modifiche
+// Impostazioni broker salvate nel browser (localStorage): le modifiche
 // NON si perdono al refresh. La prima volta usa i valori scritti nell'HTML.
-const SETTINGS_IDS = ["host", "port", "user", "pass", "token", "prefix"];
+const SETTINGS_IDS = ["host", "port", "user", "pass", "prefix"];
 function caricaImpostazioni() {
   SETTINGS_IDS.forEach(id => {
     const v = localStorage.getItem("cfg_" + id);
@@ -206,6 +244,78 @@ function applicaImpostazioniDaTesto() {
 function esportaImpostazioni() {
   $("cfgText").value = SETTINGS_IDS.map(id => id + "=" + $(id).value).join("\n");
 }
+
+// ── Notifiche SOS (email + SMS): utenze salvate nel browser e inviate alla scheda ──
+const NOTIFY_IDS = ["nMailUrl", "nSmsLogin", "nSmsPass", "nSmsSender", "nSmsIdApi", "nSmsNumeri"];
+function caricaNotifiche() {
+  NOTIFY_IDS.forEach(id => {
+    const v = localStorage.getItem("cfg_" + id);
+    if (v !== null) $(id).value = v;
+  });
+}
+function salvaNotifiche() {
+  NOTIFY_IDS.forEach(id => localStorage.setItem("cfg_" + id, $(id).value));
+}
+// Costruisce la config "chiave=valore" e la pubblica (retained) verso la scheda.
+function inviaNotifiche() {
+  salvaNotifiche();
+  const corpo = [
+    "mail_url="   + $("nMailUrl").value.trim(),
+    "sms_login="  + $("nSmsLogin").value.trim(),
+    "sms_pass="   + $("nSmsPass").value,
+    "sms_sender=" + $("nSmsSender").value.trim(),
+    "sms_id_api=" + $("nSmsIdApi").value.trim(),
+    "sms_numeri=" + $("nSmsNumeri").value.replace(/\s+/g, ""),
+  ].join("\n");
+  pubblica(cfg().tConfig, corpo, true);   // retained: la scheda la ritrova anche dopo un riavvio
+  alert("Utenze notifiche salvate nel browser e inviate alla scheda.");
+}
+
+// ── Configurazione via URL (script Google) ───────────────────
+// L'amministratore crea uno script che risponde in JSON con i dati del broker.
+// Con la chiave "admin" lo script aggiunge le utenze SOS e il flag admin:true,
+// che sblocca la card Notifiche SOS. I familiari ricevono solo il broker.
+function mostraNotifiche(on) {
+  const c = $("card-notifiche");
+  if (c) c.style.display = on ? "" : "none";
+  localStorage.setItem("cfg_admin", on ? "1" : "0");
+}
+async function caricaDaUrl(manuale) {
+  const url = $("configUrl").value.trim();
+  if (!url) { if (manuale) alert("Incolla prima l'URL di configurazione."); return; }
+  localStorage.setItem("cfg_configUrl", url);
+  try {
+    const r = await fetch(url, { redirect: "follow" });
+    const cfg = await r.json();
+    // Dati del broker (per tutti)
+    if (cfg.host   !== undefined) $("host").value   = cfg.host;
+    if (cfg.port   !== undefined) $("port").value   = cfg.port;
+    if (cfg.user   !== undefined) $("user").value   = cfg.user;
+    if (cfg.pass   !== undefined) $("pass").value   = cfg.pass;
+    if (cfg.prefix !== undefined) $("prefix").value = cfg.prefix;
+    salvaImpostazioni();
+    // Solo con chiave admin: utenze SOS + sblocco della card
+    if (cfg.admin) {
+      const s = cfg.sos || {};
+      if (s.mailUrl   !== undefined) $("nMailUrl").value   = s.mailUrl;
+      if (s.smsLogin  !== undefined) $("nSmsLogin").value  = s.smsLogin;
+      if (s.smsPass   !== undefined) $("nSmsPass").value   = s.smsPass;
+      if (s.smsSender !== undefined) $("nSmsSender").value = s.smsSender;
+      if (s.smsIdApi  !== undefined) $("nSmsIdApi").value  = s.smsIdApi;
+      if (s.smsNumeri !== undefined) $("nSmsNumeri").value = s.smsNumeri;
+      salvaNotifiche();
+      mostraNotifiche(true);
+    } else {
+      mostraNotifiche(false);
+    }
+    if (manuale) alert("Configurazione caricata" + (cfg.admin ? " (amministratore)" : "") + ". Riconnetto…");
+    riconnetti();
+  } catch (err) {
+    if (manuale) alert("Non riesco a leggere la configurazione dall'URL.\n" +
+      "Controlla l'URL/chiave e che lo script Google sia pubblicato per \"Chiunque\".\n\n" + err);
+    log("Errore caricamento config da URL: " + err);
+  }
+}
 function log(msg) {
   const t = new Date().toLocaleTimeString();
   $("log").textContent = `[${t}] ${msg}\n` + $("log").textContent;
@@ -223,13 +333,13 @@ function connetti() {
   });
   client.on("connect", () => {
     $("dot").className = "dot on"; $("stato").textContent = "connesso";
-    client.subscribe([c.tDisplay, c.tSveglie, c.tFeedback, c.tStato], { qos: 1 });
+    client.subscribe([c.tDisplay, c.tSveglie, c.tFeedback, c.tStato, c.tSos], { qos: 1 });
     log("Connesso a " + url);
   });
   client.on("reconnect", () => { $("dot").className = "dot"; $("stato").textContent = "riconnessione…"; });
   client.on("close",    () => { $("dot").className = "dot off"; $("stato").textContent = "disconnesso"; });
   client.on("error",    e  => { log("Errore: " + e.message); });
-  client.on("message", (topic, payload) => onMessaggio(topic, payload.toString()));
+  client.on("message", (topic, payload, packet) => onMessaggio(topic, payload.toString(), packet));
 }
 function riconnetti() { salvaImpostazioni(); if (client) client.end(true); connetti(); }
 
@@ -246,7 +356,7 @@ function setAttivo(tipo) {
 }
 
 // ── Ricezione: riallinea i form dai retained ─────────────────
-function onMessaggio(topic, msg) {
+function onMessaggio(topic, msg, packet) {
   const c = cfg();
   if (topic === c.tFeedback) {
     // Il feedback è ciò che l'ESP32 ha DAVVERO disegnato: prima riga = tipo attuale
@@ -261,10 +371,21 @@ function onMessaggio(topic, msg) {
     log("Stato scheda: " + msg.trim());
     return;
   }
-  // togli la prima riga se è il token
+  if (topic === c.tSos) {
+    if (msg.trim() === "") { $("sosBanner").style.display = "none"; return; }  // SOS annullato
+    $("sosBanner").style.display = "";      // mostra il banner SOS (anche al reload se attivo)
+    log("🆘 SOS: " + msg);
+    if (!(packet && packet.retain)) {       // popup solo per SOS "dal vivo", non al reload
+      try { alert("🆘 SOS — richiesta di aiuto dalla dashboard!"); } catch (_) {}
+    }
+    return;
+  }
   let righe = msg.split("\n");
-  if (righe[0] === c.token) righe.shift();
-  const tipo = (righe.shift() || "").trim();
+  let tipo = (righe.shift() || "").trim();
+  // Compatibilità: i retained pubblicati dalla vecchia pagina avevano il token
+  // come 1ª riga. Se la 1ª riga non è un tipo noto, la salto e rileggo.
+  const TIPI = ["todo", "messaggio", "allarme", "reset", "sveglie"];
+  if (!TIPI.includes(tipo) && righe.length) tipo = (righe.shift() || "").trim();
 
   if (topic === c.tDisplay) {
     if (tipo === "todo")          caricaTodo(righe);
@@ -380,7 +501,20 @@ function inviaAllarme() {
   const corpo = linee.map(l => "# " + l).join("\n");   // sempre Grande
   pubblica(cfg().tDisplay, "allarme\n" + corpo, false);
 }
-function inviaReset() { pubblica(cfg().tDisplay, "reset", false); }
+function inviaReset() {
+  pubblica(cfg().tDisplay, "reset", false);
+  $("sosBanner").style.display = "none";    // chiude anche il banner SOS sulla pagina
+}
+function inviaSosTest() {
+  if (!confirm("Inviare un SOS di test? Parte la notifica REALE (mail).")) return;
+  pubblica(cfg().tDisplay, "sos", false);   // l'ESP32 esegue il giro SOS
+}
+// Banner "OK, visto": chiede conferma e poi spegne l'SOS sulla scheda (reset)
+function sosVisto() {
+  if (confirm("Spegnere l'SOS sulla scheda (LED e buzzer) e chiudere l'avviso?")) {
+    inviaReset();   // reset → spegne la scheda, cancella il retained, chiude il banner
+  }
+}
 
 // ── SVEGLIE ──────────────────────────────────────────────────
 function aggiungiRigaSveglia(ora = "08:00", durata = 5, testo = "") {
@@ -416,11 +550,10 @@ function inviaSveglie() {
   pubblica(cfg().tSveglie, ["sveglie", ...righe].join("\n"), true);
 }
 
-// ── Pubblicazione (aggiunge il token come prima riga) ────────
+// ── Pubblicazione ────────────────────────────────────────────
 function pubblica(topic, corpo, retain) {
   if (!client || !client.connected) return alert("Non connesso al broker.");
-  const payload = cfg().token + "\n" + corpo;
-  client.publish(topic, payload, { qos: 1, retain });
+  client.publish(topic, corpo, { qos: 1, retain });
   log(`Inviato → ${topic} (retain ${retain ? "ON" : "OFF"})`);
 }
 
@@ -476,6 +609,19 @@ aggiungiRigaTodo("COSE DA FARE", "#");
 aggiungiRigaTodo();
 aggiungiRigaSveglia();
 caricaImpostazioni();   // applica le impostazioni salvate nel browser
+caricaNotifiche();      // utenze notifiche (email/SMS) salvate nel browser
+// URL di configurazione + stato admin salvati (la card SOS resta nascosta ai familiari)
+{
+  const u = localStorage.getItem("cfg_configUrl");
+  const memorizzato = !!(u || localStorage.getItem("cfg_host"));  // dati da un'apertura precedente?
+  if (u) $("configUrl").value = u;
+  mostraNotifiche(localStorage.getItem("cfg_admin") === "1");
+  if (!memorizzato) {                 // prima volta o dati assenti: apri e segnala
+    $("card-configurl").open = true;
+    $("cfgAvviso").style.display = "";
+  }
+  if (u) caricaDaUrl(false);          // riallinea in automatico dall'URL memorizzato
+}
 connetti();
 </script>
 </body>
