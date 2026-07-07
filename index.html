@@ -422,11 +422,22 @@ function aggiungiRigaTodo(testo = "", stile = "") {
   div.className = "row"; div.dataset.stile = stile;
   div.innerHTML = `<div class="grow"><input class="t" maxlength="${info.max}" value="${escAttr(testo)}" placeholder="voce…"></div>
     <div>${selStile(stile)}<div class="muted">max ${info.max}</div></div>
-    <button class="sm sec">✕</button>`;
+    <button class="sm sec su" title="Sposta su" aria-label="Sposta su">↑</button>
+    <button class="sm sec giu" title="Sposta giù" aria-label="Sposta giù">↓</button>
+    <button class="sm sec del" title="Elimina" aria-label="Elimina">✕</button>`;
   $("todoRows").appendChild(div);
   div.querySelector("select").addEventListener("change", () => cambiaStileTodo(div));
-  div.querySelector("button").addEventListener("click", () => { div.remove(); aggiornaCapienzaTodo(); });
+  div.querySelector(".su").addEventListener("click", () => spostaRigaTodo(div, -1));
+  div.querySelector(".giu").addEventListener("click", () => spostaRigaTodo(div, +1));
+  div.querySelector(".del").addEventListener("click", () => { div.remove(); aggiornaCapienzaTodo(); });
   aggiornaCapienzaTodo();
+}
+function spostaRigaTodo(div, dir) {
+  // dir = -1 su, +1 giù: scambia la riga con quella adiacente
+  if (dir < 0 && div.previousElementSibling)
+    div.parentNode.insertBefore(div, div.previousElementSibling);
+  else if (dir > 0 && div.nextElementSibling)
+    div.parentNode.insertBefore(div.nextElementSibling, div);
 }
 function cambiaStileTodo(div) {
   const sel = div.querySelector("select"), nuovo = sel.value, vecchio = div.dataset.stile || "";
