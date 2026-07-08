@@ -58,6 +58,14 @@
      onclick="sosVisto()">OK, visto — spegni</button>
 </div>
 
+<div id="kaBanner" style="display:none; background:#b45309; color:#fff; padding:12px;
+     border-radius:10px; font-weight:600; text-align:center; margin-bottom:12px;"></div>
+
+<div id="hbStato" class="muted" style="margin:-4px 0 12px; display:flex; align-items:center; gap:7px">
+  <span id="hbCuore" style="font-size:1.7rem; line-height:1">♥</span>
+  <span id="hbTesto">battito scheda: —</span>
+</div>
+
 <!-- ── Configurazione (URL condiviso dall'amministratore) ── -->
 <!-- Pannello CHIUSO al reload: si apre da soli solo se non ci sono dati memorizzati -->
 <details class="card" id="card-configurl">
@@ -210,6 +218,7 @@ function cfg() {
     user: $("user").value, pass: $("pass").value,
     tDisplay: p + "/display", tSveglie: p + "/sveglie", tFeedback: p + "/feedback",
     tStato: p + "/stato", tSos: p + "/sos", tConfig: p + "/config",
+    tKeepalive: p + "/keepalive",
   };
 }
 
@@ -333,7 +342,7 @@ function connetti() {
   });
   client.on("connect", () => {
     $("dot").className = "dot on"; $("stato").textContent = "connesso";
-    client.subscribe([c.tDisplay, c.tSveglie, c.tFeedback, c.tStato, c.tSos], { qos: 1 });
+    client.subscribe([c.tDisplay, c.tSveglie, c.tFeedback, c.tStato, c.tSos, c.tKeepalive], { qos: 1 });
     log("Connesso a " + url);
   });
   client.on("reconnect", () => { $("dot").className = "dot"; $("stato").textContent = "riconnessione…"; });
@@ -369,6 +378,16 @@ function onMessaggio(topic, msg, packet) {
   if (topic === c.tStato) {
     setWifiCard(msg.trim() === "online");   // online → nascondi config WiFi
     log("Stato scheda: " + msg.trim());
+    return;
+  }
+  if (topic === c.tKeepalive) {
+    // payload: "<epoch> <heapLibero>"
+    const parti = msg.trim().split(/\s+/);
+    const epoch = parseInt(parti[0], 10);
+    if (epoch > 0) { ultimoKeepaliveMs = epoch * 1000; ultimoHeap = parti[1] || ""; }
+    log("Keepalive ← " + new Date(ultimoKeepaliveMs).toLocaleTimeString() +
+        (ultimoHeap ? "  heap " + ultimoHeap : ""));
+    controllaKeepalive();
     return;
   }
   if (topic === c.tSos) {
@@ -561,6 +580,37 @@ function inviaSveglie() {
   pubblica(cfg().tSveglie, ["sveglie", ...righe].join("\n"), true);
 }
 
+// ── Keepalive: avvisa se la scheda non "batte" da troppo ─────
+let ultimoKeepaliveMs = null;   // epoch (ms) dell'ultimo heartbeat ricevuto
+let ultimoHeap = "";
+const SOGLIA_KA = 40 * 60 * 1000;   // battito ogni 15 min → avvisa dopo ~40 min (2-3 mancati)
+function controllaKeepalive() {
+  const b = $("kaBanner"), cuore = $("hbCuore"), testo = $("hbTesto");
+  const setCuore = col => { if (cuore) cuore.style.color = col; };
+  if (ultimoKeepaliveMs === null) {                 // nessun battito ancora ricevuto
+    if (b) b.style.display = "none";
+    if (testo) testo.textContent = "battito scheda: — (in attesa del primo segnale)";
+    setCuore("#9ca3af");
+    return;
+  }
+  const eta = Date.now() - ultimoKeepaliveMs;
+  const ora = new Date(ultimoKeepaliveMs).toLocaleTimeString();
+  const heapTxt = ultimoHeap ? " · heap " + Number(ultimoHeap).toLocaleString() : "";
+  if (eta > SOGLIA_KA) {                             // troppo vecchio → warning
+    const min = Math.round(eta / 60000);
+    if (b) {
+      b.textContent = `⚠️ La scheda non dà segni di vita da ~${min} min (ultimo battito: ${new Date(ultimoKeepaliveMs).toLocaleString()}). Potrebbe essersi bloccata.`;
+      b.style.display = "";
+    }
+    if (testo) testo.textContent = `battito scheda: ${ora} (fa ~${min} min!)${heapTxt}`;
+    setCuore("#b45309");
+  } else {                                            // fresco → tutto ok
+    if (b) b.style.display = "none";
+    if (testo) testo.textContent = `battito scheda: ${ora}${heapTxt}`;
+    setCuore("var(--ok)");
+  }
+}
+
 // ── Pubblicazione ────────────────────────────────────────────
 function pubblica(topic, corpo, retain) {
   if (!client || !client.connected) return alert("Non connesso al broker.");
@@ -633,6 +683,7 @@ caricaNotifiche();      // utenze notifiche (email/SMS) salvate nel browser
   }
   if (u) caricaDaUrl(false);          // riallinea in automatico dall'URL memorizzato
 }
+setInterval(controllaKeepalive, 60000);   // ricontrolla la freschezza del battito ogni minuto
 connetti();
 </script>
 </body>
