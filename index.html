@@ -106,7 +106,13 @@
   <label>SMS — Login BeSMS</label>
   <input id="nSmsLogin" placeholder="utente BeSMS">
   <div class="row">
-    <div class="grow"><label>SMS — Password BeSMS</label><input id="nSmsPass" type="password" placeholder="password BeSMS"></div>
+    <div class="grow"><label>SMS — Password BeSMS</label>
+      <div style="display:flex; gap:6px">
+        <input id="nSmsPass" type="password" placeholder="password BeSMS">
+        <button type="button" class="sm sec" onclick="occhio('nSmsPass', this)"
+                title="Mostra/nascondi password" aria-label="Mostra password">👁</button>
+      </div>
+    </div>
     <div class="grow"><label>SMS — id_api (rotta)</label><input id="nSmsIdApi" placeholder="es. 5"></div>
   </div>
   <label>SMS — Mittente (max 11 caratteri, o un numero con +)</label>
@@ -129,7 +135,11 @@
   <label>Rete WiFi (SSID)</label>
   <input id="btSsid" placeholder="nome della rete WiFi">
   <label>Password WiFi</label>
-  <input id="btPass" type="password">
+  <div style="display:flex; gap:6px">
+    <input id="btPass" type="password">
+    <button type="button" class="sm sec" onclick="occhio('btPass', this)"
+            title="Mostra/nascondi password" aria-label="Mostra password">👁</button>
+  </div>
   <div class="actions"><button onclick="configuraWifiBT()">Connetti e invia</button></div>
   <p class="muted">Stato: <span id="btStato">—</span></p>
   <p class="muted">Serve Chrome col Bluetooth. La scheda dev'essere in "CONFIGURA IL WiFi".</p>
@@ -324,6 +334,16 @@ async function caricaDaUrl(manuale) {
       "Controlla l'URL/chiave e che lo script Google sia pubblicato per \"Chiunque\".\n\n" + err);
     log("Errore caricamento config da URL: " + err);
   }
+}
+// Mostra/nascondi una password: utile per verificare che sia scritta giusta
+// mentre si configura (es. la password WiFi durante il provisioning).
+function occhio(id, btn) {
+  const inp = $(id);
+  if (!inp) return;
+  const mostra = inp.type === "password";
+  inp.type = mostra ? "text" : "password";
+  btn.textContent = mostra ? "🙈" : "👁";
+  btn.title = mostra ? "Nascondi password" : "Mostra password";
 }
 function log(msg) {
   const t = new Date().toLocaleTimeString();
